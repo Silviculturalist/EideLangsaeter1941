@@ -168,14 +168,14 @@ minLogLikGADA <- function(Pars,data){
     (GADA2005Predict(40,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])<0) |
     is.na(GADA2005Predict(40,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4]))
     )
-    {returnVal=999}
+    {returnVal=returnVal+999}
   
   if(
     (GADA2005Predict(12,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])>5) | 
     (GADA2005Predict(12,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])<0) |
     is.na(GADA2005Predict(40,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4]))
     )
-    {returnVal=999}
+    {returnVal=returnVal+999}
   
   return(
     returnVal
@@ -197,14 +197,19 @@ summaryHeights <- summary1 %>% left_join(summary2) %>% left_join(summary3)
 
 summaryHeights <- summaryHeights %>% ungroup() %>% filter((A2-A1)>0) %>% filter(!is.na(A1),!is.na(A2),!is.na(H1),!is.na(H2))
 
-optim(fn=minLogLikGADA,par=c(-40,670,8000,2.21),data=summaryHeights,lower = c(-200,0,0,2),upper=c(0,1000,10000,3),method = "L-BFGS-B")
+
+#Standard something wrong..
+optim(fn=minLogLikGADA,par=c(-40,670,8000,2.3),data=summaryHeights,lower = c(-200,0,0,2),upper=c(0,1000,10000,3),method="L-BFGS-B")
+
+#Converges better.
+dfoptim::nmkb(fn=minLogLikGADA,par=c(-40,670,8000,2.3),data=summaryHeights,lower = c(-200,0,0,2),upper=c(0,1000,10000,3))
 
 EideGrunnmaterial2 %>% ggplot(aes(x=Age,y=HL,group=Plot,color=`Site Quality`))+geom_point()+geom_line()+xlim(c(0,200))+
-  geom_function(fun=function(x) GADA2005Predict(8,50,x,-51.59372,  669.37803, 7999.98338,    2.00000), aes(color="E" ))+
-  geom_function(fun=function(x) GADA2005Predict(11,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="D" ))+
-  geom_function(fun=function(x) GADA2005Predict(14,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="C" ))+
-  geom_function(fun=function(x) GADA2005Predict(17,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="B" ))+
-  geom_function(fun=function(x) GADA2005Predict(20,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="A"))+
+  geom_function(fun=function(x) GADA2005Predict(8,50,x,-22.38129, 457.63666,  96.42790  , 2.00000), aes(color="E" ))+
+  geom_function(fun=function(x) GADA2005Predict(11,50,x,-22.38129, 457.63666,  96.42790 ,  2.00000),aes(color="D" ))+
+  geom_function(fun=function(x) GADA2005Predict(14,50,x,-22.38129, 457.63666,  96.42790 ,  2.00000),aes(color="C" ))+
+  geom_function(fun=function(x) GADA2005Predict(17,50,x,-22.38129, 457.63666,  96.42790 ,  2.00000),aes(color="B" ))+
+  geom_function(fun=function(x) GADA2005Predict(20,50,x,-22.38129, 457.63666,  96.42790 ,  2.00000),aes(color="A"))+
   ylim(c(0,35))+
   geom_point(data=data.frame(x=50,y=c(8,11,14,17,20)),aes(x=x,y=y),inherit.aes=FALSE)
 
