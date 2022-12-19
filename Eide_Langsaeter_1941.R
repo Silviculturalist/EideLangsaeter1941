@@ -51,19 +51,22 @@ Eide_Langsaeter_1941_norway_spruce_HL <- function(age,QMDFelled,QMDStanding,BA,b
     (33.3+0.71512*(100*QMDFelled/QMDStanding)+0.03340*(100*baRemovedThisPeriod/BA)-0.02801*age)
   )
 }
- #Increase due to thinning effect set at k=0.2, p. 379.
- ThinningEffect <- (0.2*(100*baRemovedThisPeriod/BA)/100)
 
- return(
-   HLStanding+heightIncrementPercentage + (1+ThinningEffect)
- )
-
-}
+#  #Increase due to thinning effect set at k=0.2, p. 379.
+#  ThinningEffect <- function(baRemovedThisPeriod, StandingBA){
+#     0.2*(100*baRemovedThisPeriod/BA)/100)
+#     HLStanding+heightIncrementPercentage + (1+ThinningEffect)
+#  }
+#  return(
+#    
+#  )
+# 
+# }
 
 
 ## Handling original data ----
 library(tidyverse)
-EideGrunnmaterial <- readxl::read_xlsx("G:/My Drive/Erfarenhetstabeller/Eide 1941 material/Eide1941GrunnmaterialComplete.xlsx",na = "NA")
+EideGrunnmaterial <- readxl::read_xlsx("Eide1941GrunnmaterialComplete.xlsx",na = "NA")
 
 EideGrunnmaterial <- EideGrunnmaterial %>% mutate(
   across(
@@ -105,13 +108,13 @@ EideGrunnmaterial %>% ggplot(aes(x=Age,y=`Standing HL m`,group=Plot,color=`Site 
   ylim(c(0,27))
 
 
-install.packages("quantreg")
+library(quantreg)
 EideGrunnmaterial2 <- EideGrunnmaterial %>% rename(HL=`Standing HL m`)
 modelA <- quantreg::nlrq(data=EideGrunnmaterial2[which(EideGrunnmaterial2$`Site Quality`=="A"),],tau = 0.9,formula = HL~asymp*(1-exp(-0.025*Age))^2,start=c(asymp=40))
 modelB <- quantreg::nlrq(data=EideGrunnmaterial2[which(EideGrunnmaterial2$`Site Quality`=="B"),],tau = 0.9,formula = HL~asymp*(1-exp(-0.025*Age))^2,start=c(asymp=40))
 modelC <- quantreg::nlrq(data=EideGrunnmaterial2[which(EideGrunnmaterial2$`Site Quality`=="C"),],tau = 0.9,formula = HL~asymp*(1-exp(-0.025*Age))^2,start=c(asymp=40))
 modelD <- quantreg::nlrq(data=EideGrunnmaterial2[which(EideGrunnmaterial2$`Site Quality`=="D"),],tau = 0.9,formula = HL~asymp*(1-exp(-0.025*Age))^2,start=c(asymp=40))
-modelE <- quantreg::nlrq(data=EideGrunnmaterial2[which(EideGrunnmaterial2$`Site Quality`=="E"),],tau = 0.9,formula = HL~asymp*(1-exp(-0.025*Age))^2,start=c(asymp=40))
+modelE <- quantreg::nlrq(data=EideGrunnmaterial2[which(EideGrunnmaterial2$`Site Quality`%in%c("E","F")),],tau = 0.9,formula = HL~asymp*(1-exp(-0.025*Age))^2,start=c(asymp=40))
 
 
 EideGrunnmaterial2 %>% ggplot(aes(x=Age,y=HL,group=Plot,color=`Site Quality`))+geom_point()+geom_line()+xlim(c(0,160))+
@@ -122,3 +125,87 @@ EideGrunnmaterial2 %>% ggplot(aes(x=Age,y=HL,group=Plot,color=`Site Quality`))+g
   geom_function(fun=function(x) predict(modelE,data.frame(Age=x)),size=1)+
   ylim(c(0,27))+
   geom_point(data=data.frame(x=50,y=c(8,11,14,17,20)),aes(x=x,y=y),inherit.aes=FALSE)
+
+
+### Cieszewski GADA 2005.
+
+GADA2005Predict <- function(height,age,age2,a,b,c,j){
+  B = b-((age^j)/height)
+  R = sqrt(
+    (B^2)-2*a*(c+(age^j))
+  )
+  
+  return(
+    (((age2/age)^j)*height*(b+R)-(age2^j))/(height*a*(1-((age2/age)^j))+B+R)
+  )
+}
+
+vectGADA2005 <- Vectorize(GADA2005Predict)
+
+
+#To minimise the negative log-likelihood.
+minLogLikGADA <- function(Pars,data){
+  #Preliminaries
+  N = nrow(data)
+  Tdiffs = data$A2-data$A1
+  term1 = (N/2)*log(2*pi*var(Tdiffs))
+  sumSqLogDiffs = sum(log(Tdiffs))
+  halfVariance = var(Tdiffs)/2
+  
+  #Get estimates.
+  predicts = vectGADA2005(data$H1,data$A1,data$A2,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])
+  sqPredErrors = (data$H2-predicts)^2 
+  
+  sumSqPredbyTime = sqPredErrors/(data$A2-data$A1)
+  finalterm= sum(sumSqPredbyTime)
+  
+  returnVal = (term1 + sumSqLogDiffs/2 + halfVariance*finalterm)
+  
+  #Punish if ..
+  #too fast growth in youth.
+  if(
+    (GADA2005Predict(40,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])>5) | 
+    (GADA2005Predict(40,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])<0) |
+    is.na(GADA2005Predict(40,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4]))
+    )
+    {returnVal=999}
+  
+  if(
+    (GADA2005Predict(12,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])>5) | 
+    (GADA2005Predict(12,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4])<0) |
+    is.na(GADA2005Predict(40,100,5,a=Pars[1],b=Pars[2],c=Pars[3],j=Pars[4]))
+    )
+    {returnVal=999}
+  
+  return(
+    returnVal
+  )
+}
+
+#minLogLikVect <- Vectorize(minLogLikGADA)
+
+#Create the data.
+
+#Get first measurement ages and heights.
+summary1 <- EideGrunnmaterial2 %>% group_by(Plot) %>% summarise(A1=min(Age),A2=Age)
+
+#Get respective heights for measurement occassions.
+summary2 <- EideGrunnmaterial2 %>% group_by(Plot) %>% filter(Age==min(Age)) %>% summarise(H1=HL)
+
+summary3 <- EideGrunnmaterial2 %>% group_by(Plot,Age) %>%  summarise(H2=HL) %>% mutate(A2=Age) %>% select(-Age)
+summaryHeights <- summary1 %>% left_join(summary2) %>% left_join(summary3)
+
+summaryHeights <- summaryHeights %>% ungroup() %>% filter((A2-A1)>0) %>% filter(!is.na(A1),!is.na(A2),!is.na(H1),!is.na(H2))
+
+optim(fn=minLogLikGADA,par=c(-40,670,8000,2.21),data=summaryHeights,lower = c(-200,0,0,2),upper=c(0,1000,10000,3),method = "L-BFGS-B")
+
+EideGrunnmaterial2 %>% ggplot(aes(x=Age,y=HL,group=Plot,color=`Site Quality`))+geom_point()+geom_line()+xlim(c(0,200))+
+  geom_function(fun=function(x) GADA2005Predict(8,50,x,-51.59372,  669.37803, 7999.98338,    2.00000), aes(color="E" ))+
+  geom_function(fun=function(x) GADA2005Predict(11,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="D" ))+
+  geom_function(fun=function(x) GADA2005Predict(14,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="C" ))+
+  geom_function(fun=function(x) GADA2005Predict(17,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="B" ))+
+  geom_function(fun=function(x) GADA2005Predict(20,50,x,-51.59372,  669.37803, 7999.98338,    2.00000),aes(color="A"))+
+  ylim(c(0,35))+
+  geom_point(data=data.frame(x=50,y=c(8,11,14,17,20)),aes(x=x,y=y),inherit.aes=FALSE)
+
+
